@@ -1,8 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useJobs } from "@/lib/hooks/useJobs";
+import { useDeepLTranslation } from "@/lib/hooks/useDeepLTranslation";
 import { JobSelector } from "@/components/montaje/JobSelector";
 import { PipelineStatus } from "@/components/montaje/PipelineStatus";
+import { ActiveJobHeader } from "@/components/montaje/ActiveJobHeader";
 import { BaseImageApproval } from "@/components/montaje/BaseImageApproval";
 import { DirectorPlanApproval } from "@/components/montaje/DirectorPlanApproval";
 import { SceneGrid } from "@/components/montaje/SceneGrid";
@@ -13,11 +16,39 @@ import { API_URL, toVideoUrl } from "@/lib/utils";
 import type { InspectedResult } from "@/lib/types";
 import { MonitorPlay } from "lucide-react";
 
-export default function MontajePage() {
+function MontajeContent() {
+  const searchParams = useSearchParams();
+  const urlJobId = searchParams?.get("jobId");
+
   const { jobs, activeJob, selectedJobId, setSelectedJobId, refetch } = useJobs();
   const [inspectedResult, setInspectedResult] = useState<InspectedResult | null>(null);
 
-  // ── Handlers ──
+  // ── Sistema DeepL elevado — compartido entre SceneGrid y ResultModal ──
+  const deepl = useDeepLTranslation();
+
+  // ── Seleccionar job desde URL (?jobId=xxx) ──
+  useEffect(() => {
+    if (urlJobId) setSelectedJobId(urlJobId);
+  }, [urlJobId, setSelectedJobId]);
+
+  // ── Auto-scroll al bloque de aprobación cuando cambia el estado ──
+  useEffect(() => {
+    if (!activeJob) return;
+    const waitingStatuses = [
+      "esperando_aprobacion_imagen_base",
+      "esperando_aprobacion_plan",
+      "esperando_revision",
+      "esperando_revision_siguiente_escena",
+      "esperando_aprobacion_escena",
+    ];
+    if (waitingStatuses.includes(activeJob.status)) {
+      setTimeout(() => {
+        document.getElementById("production-monitor-header")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 500);
+    }
+  }, [activeJob?.status]);
+
+  // ── Handlers (1:1 del monolito) ──
 
   const handleApproveBaseImage = async (jobId: string) => {
     await fetch(`${API_URL}/api/jobs/${jobId}/approve_base_image`, { method: "POST" });
@@ -101,9 +132,34 @@ export default function MontajePage() {
     }
   };
 
+  const handlePurgeJob = async (jobId: string) => {
+    try {
+      await fetch(`${API_URL}/api/jobs/${jobId}/purge`, { method: "POST" });
+      setSelectedJobId("");
+      refetch();
+    } catch (e) {
+      console.error("Error purging job:", e);
+    }
+  };
+
+  const handleSaveToLibrary = async (jobId: string, name: string) => {
+    if (!name) { alert("Por favor, introduce un nombre para la modelo."); return; }
+    try {
+      const fd = new FormData();
+      fd.append("job_id", jobId);
+      fd.append("name", name);
+      const res = await fetch(`${API_URL}/api/influencers/save`, { method: "POST", body: fd });
+      if (!res.ok) throw new Error(`Error: ${res.status}`);
+      const data = await res.json();
+      if (data.status === "ok") alert(`✅ Influencer '${name}' guardada correctamente.`);
+      else alert("Error: " + data.error);
+    } catch (e: any) {
+      alert("❌ Error al guardar: " + e.message);
+    }
+  };
+
   return (
     <div className="space-y-6 p-6">
-      {/* Selector de Jobs */}
       <JobSelector jobs={jobs} selectedJobId={selectedJobId} onSelect={setSelectedJobId} />
 
       {!activeJob ? (
@@ -116,51 +172,31 @@ export default function MontajePage() {
         </div>
       ) : (
         <div className="flex flex-col lg:flex-row gap-8 animate-in fade-in duration-700">
-          {/* Panel izquierdo: Pipeline */}
           <aside className="lg:w-[300px] shrink-0 space-y-4 lg:sticky lg:top-8 h-fit">
             <div className="p-5 rounded-3xl bg-white/[0.03] border border-white/10 backdrop-blur-md">
-              <PipelineStatus
-                job={activeJob}
-                onInspect={setInspectedResult}
-                onReplay={handleReplayJob}
-              />
+              <PipelineStatus job={activeJob} onInspect={setInspectedResult} onReplay={handleReplayJob} />
             </div>
           </aside>
 
-          {/* Panel derecho: Contenido */}
           <div className="flex-1 space-y-6 min-w-0">
-            {/* Aprobación imagen base */}
+            {/* Header del Proyecto Activo */}
+            <ActiveJobHeader job={activeJob} onInspect={setInspectedResult} onPurge={handlePurgeJob} />
+
             {activeJob.status === "esperando_aprobacion_imagen_base" && (
-              <BaseImageApproval
-                job={activeJob}
-                onApprove={handleApproveBaseImage}
-                onRegenerate={(id) => handleReplayJob(id, 4)}
-              />
+              <BaseImageApproval job={activeJob} onApprove={handleApproveBaseImage} onRegenerate={(id) => handleReplayJob(id, 4)} />
             )}
 
-            {/* Aprobación plan director */}
-            {(activeJob.status === "esperando_aprobacion_plan" ||
-              activeJob.status === "esperando_revision") && (
-              <DirectorPlanApproval
-                job={activeJob}
-                onApprove={handleContinueJob}
-                onRegenerate={handleReplayJob}
-              />
+            {(activeJob.status === "esperando_aprobacion_plan" || activeJob.status === "esperando_revision") && (
+              <DirectorPlanApproval job={activeJob} onApprove={handleContinueJob} onRegenerate={handleReplayJob} />
             )}
 
-            {/* Vídeo final */}
             {activeJob.status === "completado" && activeJob.data?.final_video_url && (
-              <FinalVideoPanel
-                job={activeJob}
-                onDownload={handleDownloadVideo}
-                onReassemble={(id) => fetch(`${API_URL}/api/jobs/${id}/assemble`, { method: "POST" })}
-              />
+              <FinalVideoPanel job={activeJob} onDownload={handleDownloadVideo} onReassemble={(id) => fetch(`${API_URL}/api/jobs/${id}/assemble`, { method: "POST" })} />
             )}
 
-            {/* Botón ensamblado emergencia */}
             <AssemblyButton job={activeJob} />
 
-            {/* Grid de escenas */}
+            {/* SceneGrid recibe DeepL compartido desde MontajePage */}
             <SceneGrid
               job={activeJob}
               onSelectVersion={handleSelectVersion}
@@ -170,18 +206,51 @@ export default function MontajePage() {
               onUnlock={handleUnlock}
               onSaveClipEdits={handleSaveClipEdits}
               onInspect={setInspectedResult}
+              showTranslation={deepl.showTranslation}
+              esCache={deepl.esCache}
+              enOverride={deepl.enOverride}
+              contentVersion={deepl.contentVersion}
+              translating={deepl.translating}
+              liveValuesRef={deepl.liveValuesRef}
+              dirtyTagsRef={deepl.dirtyTagsRef}
+              setEsCache={deepl.setEsCache}
+              setEnOverride={deepl.setEnOverride}
+              handlePromptTranslation={deepl.handlePromptTranslation}
+              handleScriptTranslation={deepl.handleScriptTranslation}
             />
           </div>
         </div>
       )}
 
-      {/* Modal JSON */}
+      {/* ResultModal recibe DeepL + todos los handlers */}
       {inspectedResult && (
         <ResultModal
           data={inspectedResult}
           onClose={() => setInspectedResult(null)}
+          handleContinueJob={handleContinueJob}
+          handleApproveScene={handleApproveScene}
+          handleRegenerateScene={handleRegenerateScene}
+          showTranslation={deepl.showTranslation}
+          translating={deepl.translating}
+          esCache={deepl.esCache}
+          enOverride={deepl.enOverride}
+          contentVersion={deepl.contentVersion}
+          handlePromptTranslation={deepl.handlePromptTranslation}
+          handleScriptTranslation={deepl.handleScriptTranslation}
+          liveValuesRef={deepl.liveValuesRef}
+          dirtyTagsRef={deepl.dirtyTagsRef}
+          setEsCache={deepl.setEsCache}
+          setEnOverride={deepl.setEnOverride}
         />
       )}
     </div>
+  );
+}
+
+export default function MontajePage() {
+  return (
+    <Suspense>
+      <MontajeContent />
+    </Suspense>
   );
 }

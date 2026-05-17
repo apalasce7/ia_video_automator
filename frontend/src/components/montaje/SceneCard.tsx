@@ -7,13 +7,12 @@ import {
   Scissors, RefreshCw, EyeOff, CheckCircle2, Languages,
   ChevronLeft, ChevronRight, Video, MonitorPlay, Zap, Sparkles
 } from "lucide-react";
-import { toVideoUrl, parseSections, API_URL } from "@/lib/utils";
+import { parseSections, NOMINAL_ORDER } from "@/lib/utils";
 
 interface SceneCardProps {
   job: any;
   scene: any;
   idx: number;
-  // DeepL state (lifted to SceneGrid)
   showTranslation: Record<string, boolean>;
   esCache: Record<string, string>;
   enOverride: Record<string, string>;
@@ -23,7 +22,6 @@ interface SceneCardProps {
   dirtyTagsRef: React.MutableRefObject<Record<string, Set<string>>>;
   setEsCache: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   setEnOverride: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  // Handlers
   onSelectVersion: (jobId: string, sceneIdx: number, versionIdx: number) => void;
   onRegenerateScene: (jobId: string, prompt?: string, script?: string, sceneIdx?: number) => void;
   onApproveScene: (jobId: string) => void;
@@ -68,7 +66,7 @@ export function SceneCard({
       : "opacity-100",
   ].join(" ");
 
-  // ── Script change handler (mirrors to DIALOGUE) ──
+  // ── Script change: mirror al DIALOGUE — regex corregido 1:1 monolito ──
   const handleScriptChange = (newScript: string) => {
     const tagKey = "[DIALOGUE]:";
     const compKey = `${sceneKey}___${tagKey}`;
@@ -78,18 +76,23 @@ export function SceneCard({
     liveValuesRef.current[scriptKey] = newScript;
 
     const masterEl = document.getElementById(`edit-prompt-${job.id}-${idx}`) as HTMLTextAreaElement;
-    if (masterEl) masterEl.value = masterEl.value.replace(/(\\[DIALOGUE\\]:[\\s\\S]*?['\"])([\\s\\S]*?)(['\"])/gi, `$1${newScript}$3`);
+    if (masterEl) {
+      masterEl.value = masterEl.value.replace(
+        /(\[DIALOGUE\]:[\s\S]*?['"])([^'"]*?)(['"])/gi,
+        `$1${newScript}$3`
+      );
+    }
 
     const updateFn = (prev: any) => {
       const oldVal = prev[compKey] || "";
-      const newVal = oldVal.replace(/(['"\\s\\S]*?)(['"\\s\\S]*?)(['"])/g, `$1${newScript}$3`);
+      const newVal = oldVal.replace(/(['"])([^'"]*)(['"])/, `$1${newScript}$3`);
       liveValuesRef.current[compKey] = newVal;
       return { ...prev, [compKey]: newVal, [scriptKey]: newScript };
     };
     if (isESScript) setEsCache(updateFn); else setEnOverride(updateFn);
   };
 
-  // ── Prompt tag change handler (mirrors to master + script) ──
+  // ── Tag change: mirror a master con NOMINAL_ORDER — 1:1 monolito ──
   const handleTagChange = (tag: string, newVal: string) => {
     const compositeKey = `${sceneKey}___${tag}`;
     liveValuesRef.current[compositeKey] = newVal;
@@ -99,11 +102,17 @@ export function SceneCard({
     const master = document.getElementById(`edit-prompt-${job.id}-${idx}`) as HTMLTextAreaElement;
     if (master && !isES) {
       const parts = Array.from(document.querySelectorAll(`[data-edit-prompt="${idx}"]`)) as HTMLTextAreaElement[];
-      master.value = parts.map(p => `${p.getAttribute("data-tag")} ${p.value}`).join("\n").trim();
+      master.value = parts
+        .sort((a, b) =>
+          NOMINAL_ORDER.indexOf(a.getAttribute("data-tag")!) -
+          NOMINAL_ORDER.indexOf(b.getAttribute("data-tag")!)
+        )
+        .map(p => `${p.getAttribute("data-tag")} ${p.value}`)
+        .join("\n").trim();
     }
 
     if (tag.toUpperCase().includes("DIALOGUE")) {
-      const match = /['"]([^'"]*)['"]/. exec(newVal);
+      const match = /['"]([^'"]*)['"]/.exec(newVal);
       if (match) {
         const scriptEl = document.getElementById(`edit-script-${job.id}-${idx}`) as HTMLTextAreaElement;
         if (scriptEl) {
@@ -118,10 +127,9 @@ export function SceneCard({
     if (isES) setEsCache(update); else setEnOverride(update);
   };
 
-  const scriptValue = (() => {
-    if (isESScript) return esCache[scriptKey] || scene.script_completo || scene.script || scene.locucion;
-    return enOverride[scriptKey] || scene.script_completo || scene.script || scene.locucion;
-  })();
+  const scriptValue = isESScript
+    ? (esCache[scriptKey] || scene.script_completo || scene.script || scene.locucion)
+    : (enOverride[scriptKey] || scene.script_completo || scene.script || scene.locucion);
 
   const originalPrompt = scene.prompt_visual_ingles || scene.prompt_visual || "";
   const sections = parseSections(originalPrompt);
@@ -142,23 +150,19 @@ export function SceneCard({
 
         {(isCompleted || isFinished) ? (
           <div className="flex items-center gap-1">
-            {/* Version selector */}
             {history.length > 1 && (
               <div className="flex items-center bg-black/40 border border-white/10 rounded-xl h-7 mr-1">
                 <Button variant="ghost" size="icon" className="h-6 w-5 text-white/30 hover:text-white"
                   onClick={() => onSelectVersion(job.id, idx, (currentVIdx - 1 + history.length) % history.length)}>
                   <ChevronLeft className="w-3 h-3" />
                 </Button>
-                <span className="text-[8px] font-black text-white/60 px-1 font-mono">
-                  V{currentVIdx + 1}
-                </span>
+                <span className="text-[8px] font-black text-white/60 px-1 font-mono">V{currentVIdx + 1}</span>
                 <Button variant="ghost" size="icon" className="h-6 w-5 text-white/30 hover:text-white"
                   onClick={() => onSelectVersion(job.id, idx, (currentVIdx + 1) % history.length)}>
                   <ChevronRight className="w-3 h-3" />
                 </Button>
               </div>
             )}
-            {/* Action buttons */}
             <div className="flex items-center gap-1 bg-white/[0.03] p-1 rounded-xl border border-white/5">
               <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-white/40 hover:text-violet-400 hover:bg-violet-400/10"
                 onClick={() => setEditingClip(true)} title="Editar recorte">
@@ -230,7 +234,6 @@ export function SceneCard({
           </div>
         )}
 
-        {/* ClipEditor overlay */}
         {editingClip && videoUrl && (
           <div className="absolute inset-0 z-[60] bg-black/40 backdrop-blur-md animate-in fade-in duration-300">
             <ClipEditor
@@ -243,8 +246,9 @@ export function SceneCard({
         )}
       </div>
 
-      {/* ── Interaction Area (Plan / Approve / Edit) ── */}
+      {/* ── Interaction Area ── */}
       <div className="flex-1 flex flex-col min-h-0">
+        {/* Modo Plan */}
         {(job.status === "esperando_aprobacion_plan" ||
           (isCurrent && job.status === "esperando_revision_siguiente_escena")) && (
           <div className="p-4 space-y-4 bg-white/[0.01] flex-1 flex flex-col">
@@ -269,30 +273,21 @@ export function SceneCard({
                 </button>
               )
             )}
-
-            {/* Script (plan mode) */}
-            <ScriptField
-              id={`plan-script-${idx}`}
-              sceneKey={sceneKey} scriptKey={scriptKey}
-              value={scriptValue} isES={isESScript}
-              translating={!!translating[scriptKey]}
+            {/* IDs sagrados: plan-script-{idx} y plan-prompt-{idx} */}
+            <ScriptField id={`plan-script-${idx}`} sceneKey={sceneKey} scriptKey={scriptKey}
+              value={scriptValue} isES={isESScript} translating={!!translating[scriptKey]}
               onTranslate={() => onScriptTranslation(sceneKey, scene.script_completo || scene.script || scene.locucion)}
-              onChange={handleScriptChange}
-            />
-
-            {/* Prompt visual (plan mode) with hidden master */}
+              onChange={handleScriptChange} />
             <textarea id={`plan-prompt-${idx}`} className="hidden" defaultValue={originalPrompt} />
-            <PromptSections
-              sceneKey={sceneKey} sections={sections} isES={isES}
+            <PromptSections sceneKey={sceneKey} sections={sections} isES={isES}
               esCache={esCache} enOverride={enOverride} contentVersion={contentVersion}
-              translating={!!translating[sceneKey]}
-              dataAttr="data-scene-prompt" idx={idx}
+              translating={!!translating[sceneKey]} dataAttr="data-scene-prompt" idx={idx}
               onTranslate={() => onPromptTranslation(sceneKey, sections.map(s => ({ tag: s.tag, originalContent: s.content })))}
-              onChange={handleTagChange}
-            />
+              onChange={handleTagChange} />
           </div>
         )}
 
+        {/* Modo Aprobación Escena */}
         {isCurrent && job.status === "esperando_aprobacion_escena" && (
           <div className="p-4 space-y-4 border-t border-amber-500/5">
             <div className="flex items-center justify-between">
@@ -302,29 +297,17 @@ export function SceneCard({
                 <span className="text-[9px] font-black text-amber-500/40 uppercase tracking-widest">Acción Requerida</span>
               </div>
             </div>
-
-            {/* Script (edit mode) — ID sagrado */}
-            <ScriptField
-              id={`edit-script-${job.id}-${idx}`}
-              sceneKey={sceneKey} scriptKey={scriptKey}
-              value={scriptValue} isES={isESScript}
-              translating={!!translating[scriptKey]}
+            {/* IDs sagrados: edit-script-{jobId}-{idx} y edit-prompt-{jobId}-{idx} */}
+            <ScriptField id={`edit-script-${job.id}-${idx}`} sceneKey={sceneKey} scriptKey={scriptKey}
+              value={scriptValue} isES={isESScript} translating={!!translating[scriptKey]}
               onTranslate={() => onScriptTranslation(sceneKey, scene.script_completo || scene.script || scene.locucion)}
-              onChange={handleScriptChange}
-            />
-
-            {/* Prompt visual (edit mode) with hidden master — ID sagrado */}
+              onChange={handleScriptChange} />
             <textarea id={`edit-prompt-${job.id}-${idx}`} className="hidden" defaultValue={originalPrompt} />
-            <PromptSections
-              sceneKey={sceneKey} sections={sections} isES={isES}
+            <PromptSections sceneKey={sceneKey} sections={sections} isES={isES}
               esCache={esCache} enOverride={enOverride} contentVersion={contentVersion}
-              translating={!!translating[sceneKey]}
-              dataAttr="data-edit-prompt" idx={idx}
+              translating={!!translating[sceneKey]} dataAttr="data-edit-prompt" idx={idx}
               onTranslate={() => onPromptTranslation(sceneKey, sections.map(s => ({ tag: s.tag, originalContent: s.content })))}
-              onChange={handleTagChange}
-            />
-
-            {/* Approve + Regenerate buttons */}
+              onChange={handleTagChange} />
             <div className="flex flex-col gap-2 pt-2 border-t border-white/5">
               <button onClick={() => onApproveScene(job.id)}
                 className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase py-3 rounded-2xl text-[10px] tracking-widest transition-all active:scale-95">
@@ -341,12 +324,42 @@ export function SceneCard({
             </div>
           </div>
         )}
+
+        {/* Panel read-only: escena completada no activa */}
+        {(isCompleted || isFinished) && !isCurrent
+          && job.status !== "esperando_aprobacion_plan"
+          && job.status !== "esperando_revision_siguiente_escena" && (
+          <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="group/script">
+                <label className="text-[9px] font-black text-emerald-500/40 uppercase tracking-widest block mb-1">Guión Generado</label>
+                <p className="text-[11px] text-white/60 leading-relaxed font-medium line-clamp-3 group-hover/script:line-clamp-none transition-all">
+                  {scene.script_completo || scene.script || scene.locucion || "—"}
+                </p>
+              </div>
+              <div className="pt-2 border-t border-white/5 space-y-1.5">
+                <label className="text-[9px] font-black text-amber-500/40 uppercase tracking-widest block">Prompt Visual</label>
+                <div className="space-y-1">
+                  {sections.map(({ tag, content }) => (
+                    <div key={tag} className="p-2 rounded-lg bg-white/[0.02] border border-white/5">
+                      <span className="text-[8px] font-black text-white/20 uppercase tracking-widest block mb-0.5">{tag.replace(/:/g, "")}</span>
+                      <p className="text-[9px] text-amber-200/25 font-mono leading-tight line-clamp-2">{content}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-auto">
+              <span className="text-[8px] font-bold text-white/15 uppercase tracking-widest">{scene.duracion}s · {scene.audio_mode}</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ── Sub-componentes auxiliares ──
+// ── Sub-componentes ──
 
 function ScriptField({ id, sceneKey, scriptKey, value, isES, translating, onTranslate, onChange }: {
   id: string; sceneKey: string; scriptKey: string;
@@ -363,14 +376,10 @@ function ScriptField({ id, sceneKey, scriptKey, value, isES, translating, onTran
         </Button>
       </div>
       <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/5 focus-within:border-emerald-500/30 transition-all">
-        <textarea
-          id={id}
-          key={`${scriptKey}-${isES ? "es" : "en"}`}
-          defaultValue={value}
+        <textarea id={id} key={`${scriptKey}-${isES ? "es" : "en"}`} defaultValue={value}
           onChange={e => onChange(e.target.value)}
           className="bg-transparent border-0 text-white/90 font-medium text-[11px] min-h-[36px] w-full outline-none resize-none leading-tight placeholder:text-white/10"
-          placeholder="Script de voz..."
-        />
+          placeholder="Script de voz..." />
       </div>
     </div>
   );
@@ -399,18 +408,11 @@ function PromptSections({ sceneKey, sections, isES, esCache, enOverride, content
           const display = isES ? (esCache[compKey] || content) : (enOverride[compKey] || content);
           return (
             <div key={tag} className="group space-y-1 p-2 rounded-xl bg-white/[0.02] border border-white/5 hover:border-amber-500/20 transition-all">
-              <span className="text-[8px] font-black text-white/20 uppercase tracking-widest block">
-                {tag.replace(/:/g, "")}
-              </span>
-              <textarea
-                key={`${compKey}-v${version}`}
-                {...{ [dataAttr]: idx }}
-                data-tag={tag}
-                defaultValue={display}
-                onChange={e => onChange(tag, e.target.value)}
+              <span className="text-[8px] font-black text-white/20 uppercase tracking-widest block">{tag.replace(/:/g, "")}</span>
+              <textarea key={`${compKey}-v${version}`} {...{ [dataAttr]: idx }} data-tag={tag}
+                defaultValue={display} onChange={e => onChange(tag, e.target.value)}
                 className="bg-transparent border-0 text-amber-100/70 font-medium text-[10px] w-full outline-none resize-none leading-normal"
-                rows={Math.max(1, display.split("\n").length)}
-              />
+                rows={Math.max(1, display.split("\n").length)} />
             </div>
           );
         })}
