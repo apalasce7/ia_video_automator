@@ -127,7 +127,7 @@ export default function StudioPage() {
 
   const handleLaunchSuccess = (jobId: string) => {
     // Redirigir al monitor (Mesa de Montaje) con el job seleccionado
-    router.push(`/?tab=monitor&job=${jobId}`);
+    router.push(`/montaje?jobId=${jobId}`);
   };
 
   return (

@@ -59,7 +59,7 @@ export function AppSidebar() {
               </SidebarMenuItem>
 
               <SidebarMenuItem>
-                <SidebarMenuButton render={<Link href="/" />} isActive={pathname === "/"} className="text-zinc-400 hover:text-white hover:bg-white/5 data-[active=true]:bg-violet-500/20 data-[active=true]:text-violet-300">
+                <SidebarMenuButton render={<Link href="/montaje" />} isActive={pathname.startsWith("/montaje")} className="text-zinc-400 hover:text-white hover:bg-white/5 data-[active=true]:bg-violet-500/20 data-[active=true]:text-violet-300">
                   <Film />
                   <span>Mesa de Montaje</span>
                 </SidebarMenuButton>
