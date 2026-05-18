@@ -55,3 +55,40 @@ export function getStatusLabel(status: string): string {
   if (!status) return "—";
   return status.replace(/_/g, " ").slice(0, 22);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Labels del Historial — migración de L.2208–2230 del monolito (page.tsx)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const AUDIO_LABELS: Record<string, string> = {
+  "lip-sync":   "🗣️",
+  "mixed":      "🎭",
+  "voice-over": "🎙️",
+  "asmr":       "🍃",
+  "silent":     "🔇",
+};
+
+export const LANG_LABELS: Record<string, string> = {
+  "es":       "🇪🇸",
+  "es-latam": "🇲🇽",
+  "en":       "🇺🇸",
+  "fr":       "🇫🇷",
+  "de":       "🇩🇪",
+  "it":       "🇮🇹",
+  "pt":       "🇵🇹",
+};
+
+export const MODEL_LABELS: Record<string, string> = {
+  "minimax":       "🇨🇳 MiniMax",
+  "groq":          "⚡ Groq",
+  "gemini":        "💎 Gemini Pro",
+  "gemini-flash":  "⚡ Gemini Flash",
+  "gemini-lite":   "🍃 Gemini Lite",
+  "gemini-25-pro": "🚀 Gemini 2.5",
+};
+
+export const STYLE_LABELS: Record<string, string> = {
+  "standard":       "🎬 Clásico",
+  "fast-cuts":      "⚡ Rápido",
+  "b-roll-focused": "🤲 Detalle",
+};

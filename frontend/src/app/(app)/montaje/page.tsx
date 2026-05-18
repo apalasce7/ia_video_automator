@@ -20,7 +20,7 @@ function MontajeContent() {
   const searchParams = useSearchParams();
   const urlJobId = searchParams?.get("jobId");
 
-  const { jobs, activeJob, selectedJobId, setSelectedJobId, refetch } = useJobs();
+  const { jobs, setJobs, activeJob, selectedJobId, setSelectedJobId, refetch } = useJobs();
   const [inspectedResult, setInspectedResult] = useState<InspectedResult | null>(null);
 
   // ── Sistema DeepL elevado — compartido entre SceneGrid y ResultModal ──
@@ -109,6 +109,23 @@ function MontajeContent() {
     if (!job) return;
     const allEdits = { ...job.data.scene_edits || {} };
     allEdits[String(sceneIdx)] = clipEdits;
+
+    // Optimistic UI Update
+    setJobs((prevJobs) => 
+      prevJobs.map(j => {
+        if (j.id === jobId) {
+          return {
+            ...j,
+            data: {
+              ...j.data,
+              scene_edits: allEdits
+            }
+          };
+        }
+        return j;
+      })
+    );
+
     const fd = new FormData();
     fd.append("edits", JSON.stringify(allEdits));
     await fetch(`${API_URL}/api/jobs/${jobId}/save_edits`, { method: "POST", body: fd });

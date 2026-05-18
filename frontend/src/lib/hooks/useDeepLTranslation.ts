@@ -116,7 +116,7 @@ export function useDeepLTranslation() {
     }
   }, [showTranslation, esCache, translateWithDeepL]);
 
-  const handleScriptTranslation = useCallback(async (sceneKey: string, originalContent: string) => {
+  const handleScriptTranslation = useCallback(async (sceneKey: string, originalContent: string, originalDialogue: string = "") => {
     const scriptKey = `${sceneKey}___SCRIPT`;
     const isCurrentlyES = showTranslation[scriptKey];
     setTranslating(prev => ({ ...prev, [scriptKey]: true }));
@@ -141,7 +141,7 @@ export function useDeepLTranslation() {
             const tagKey = "[DIALOGUE]:";
             const compKey = `${sceneKey}___${tagKey}`;
             const newValues = { ...prev, [scriptKey]: translated[0] };
-            const oldDialogue = prev[compKey] || "";
+            const oldDialogue = prev[compKey] || originalDialogue || "";
             if (oldDialogue) newValues[compKey] = oldDialogue.replace(/(['"])([^'"]*?)(['"])/, `$1${translated[0]}$3`);
             return newValues;
           });

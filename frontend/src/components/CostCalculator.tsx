@@ -108,14 +108,14 @@ export function CostCalculator({ jobId, duration, resolution }: CostCalculatorPr
           <div className="bg-emerald-500/10 rounded-2xl p-4 border border-emerald-500/20 space-y-4">
             <div>
               <p className="text-[10px] text-emerald-400 uppercase font-black tracking-widest mb-1">Gasto Real Acumulado</p>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Receipt className="w-5 h-5 text-emerald-400" />
                   <span className="text-2xl font-mono font-black text-white">
                     ${projectCost.toFixed(3)}
                   </span>
                 </div>
-                <Badge className="bg-emerald-500/20 text-emerald-400 border-none text-[9px] font-black uppercase">Sincronizado</Badge>
+                <Badge className="bg-emerald-500/20 text-emerald-400 border-none text-[9px] font-black uppercase whitespace-nowrap shrink-0">Sincronizado</Badge>
               </div>
             </div>
 

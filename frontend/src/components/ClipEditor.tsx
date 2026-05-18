@@ -165,7 +165,7 @@ export function ClipEditor({
   const durationSafe = duration || 1;
 
   return (
-    <div className="absolute inset-0 bg-black/95 z-[100] flex flex-col animate-in fade-in zoom-in-95 duration-300 rounded-3xl overflow-hidden">
+    <div className="flex-1 w-full h-full flex flex-col relative overflow-hidden">
       <div className="p-4 flex items-center justify-between border-b border-white/10 bg-white/[0.02]">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center border border-violet-500/30">

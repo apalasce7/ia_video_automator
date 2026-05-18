@@ -11,11 +11,16 @@ export function useJobs(intervalMs = 2000) {
   const fetchJobs = useCallback(async () => {
     try {
       const data = await apiFetchJobs();
-      // Convierte objeto a array de jobs
-      const jobsArray = Object.keys(data).map((key) => ({
-        ...data[key],
-        id: key,
-      }));
+      // Aseguramos soporte tanto si el backend devuelve un arreglo como un objeto/diccionario
+      const jobsArray = Array.isArray(data)
+        ? data.map((job: any) => ({
+            ...job,
+            id: job.id, // Conservar el id real del backend
+          }))
+        : Object.keys(data).map((key) => ({
+            ...data[key],
+            id: data[key].id || key,
+          }));
       // Orden descendente por default
       jobsArray.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setJobs(jobsArray);
@@ -43,6 +48,6 @@ export function useJobs(intervalMs = 2000) {
 
   const activeJob = jobs.find(j => j.id === selectedJobId) ?? null;
 
-  return { jobs, loading, refetch: fetchJobs, selectedJobId, setSelectedJobId, activeJob };
+  return { jobs, setJobs, loading, refetch: fetchJobs, selectedJobId, setSelectedJobId, activeJob };
 }
 

@@ -66,7 +66,10 @@ export function PipelineStatus({ job, onInspect, onReplay }: Props) {
       {/* Fases del pipeline */}
       <div className="space-y-1.5">
         {PHASE_ORDER.map((key, idx) => {
-          const status = phases[key] ?? "⏳ Pendiente";
+          const rawStatus = phases[key] ?? "⏳ Pendiente";
+          const status = (idx + 1 < job.phase && (!rawStatus || rawStatus.includes("Pendiente") || rawStatus.includes("cola")))
+            ? "✅ Listo (Omitido)"
+            : rawStatus;
           const label = phaseLabels[key] || key;
           const result = job.data?.[key] || phases[key];
           return (
@@ -107,7 +110,11 @@ export function PipelineStatus({ job, onInspect, onReplay }: Props) {
 
       {/* Calculadora de costes */}
       <div className="pt-1">
-        <CostCalculator jobId={job.id} />
+        <CostCalculator 
+          jobId={job.id} 
+          duration={job.data?.duration || job.data?.story_plan?.escenas?.reduce((acc: number, esc: any) => acc + (esc.duracion || 5), 0) || 0}
+          resolution={job.data?.resolution || "1080p"}
+        />
       </div>
     </div>
   );

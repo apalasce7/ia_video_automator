@@ -75,7 +75,9 @@ export function SceneCard({
     dirtyTagsRef.current[sceneKey].add(tagKey);
     liveValuesRef.current[scriptKey] = newScript;
 
-    const masterEl = document.getElementById(`edit-prompt-${job.id}-${idx}`) as HTMLTextAreaElement;
+    // 1. Mirror al master OCULTO (edit-prompt o plan-prompt)
+    const masterEl = document.getElementById(`edit-prompt-${job.id}-${idx}`) as HTMLTextAreaElement
+      || document.getElementById(`plan-prompt-${idx}`) as HTMLTextAreaElement;
     if (masterEl) {
       masterEl.value = masterEl.value.replace(
         /(\[DIALOGUE\]:[\s\S]*?['"])([^'"]*?)(['"])/gi,
@@ -83,14 +85,30 @@ export function SceneCard({
       );
     }
 
+    // 2. Mirror al textarea VISIBLE del DIALOGUE (solo si Locución y Prompt están en el mismo idioma)
+    const isESScript = showTranslation[scriptKey];
+    const isESPrompt = showTranslation[sceneKey];
+    if (!!isESScript === !!isESPrompt) {
+      const visibleDialogueEdit = document.querySelector(`[data-edit-prompt="${idx}"][data-tag*="DIALOGUE"]`) as HTMLTextAreaElement;
+      if (visibleDialogueEdit) {
+        visibleDialogueEdit.value = visibleDialogueEdit.value.replace(/(['"])([^'"]*?)(['"])/gi, `$1${newScript}$3`);
+      }
+      const visibleDialoguePlan = document.querySelector(`[data-scene-prompt="${idx}"][data-tag*="DIALOGUE"]`) as HTMLTextAreaElement;
+      if (visibleDialoguePlan) {
+        visibleDialoguePlan.value = visibleDialoguePlan.value.replace(/(['"])([^'"]*?)(['"])/gi, `$1${newScript}$3`);
+      }
+    }
+
     const updateFn = (prev: any) => {
-      const oldVal = prev[compKey] || "";
+      const originalParsed = parseSections(scene.prompt_visual_ingles || scene.prompt_visual || "").find(s => s.tag === tagKey)?.content || "";
+      const oldVal = prev[compKey] || originalParsed;
       const newVal = oldVal.replace(/(['"])([^'"]*)(['"])/, `$1${newScript}$3`);
       liveValuesRef.current[compKey] = newVal;
       return { ...prev, [compKey]: newVal, [scriptKey]: newScript };
     };
     if (isESScript) setEsCache(updateFn); else setEnOverride(updateFn);
   };
+
 
   // ── Tag change: mirror a master con NOMINAL_ORDER — 1:1 monolito ──
   const handleTagChange = (tag: string, newVal: string) => {
@@ -235,13 +253,15 @@ export function SceneCard({
         )}
 
         {editingClip && videoUrl && (
-          <div className="absolute inset-0 z-[60] bg-black/40 backdrop-blur-md animate-in fade-in duration-300">
-            <ClipEditor
-              jobId={job.id} idx={idx} videoUrl={videoUrl}
-              initialEdits={job.data.scene_edits?.[String(idx)]}
-              onClose={() => setEditingClip(false)}
-              onSave={(edits) => { onSaveClipEdits(job.id, idx, edits); setEditingClip(false); }}
-            />
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="w-full max-w-[450px] max-h-[90vh] flex flex-col relative bg-black/95 rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
+              <ClipEditor
+                jobId={job.id} idx={idx} videoUrl={videoUrl}
+                initialEdits={job.data.scene_edits?.[String(idx)]}
+                onClose={() => setEditingClip(false)}
+                onSave={(edits) => { onSaveClipEdits(job.id, idx, edits); setEditingClip(false); }}
+              />
+            </div>
           </div>
         )}
       </div>
